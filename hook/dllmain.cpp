@@ -1,6 +1,11 @@
 #include "stdafx.h"
 #include "Hook.h"
 
+std::wstring a2w(const char* a) {
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+    return converter.from_bytes(a);
+}
+
 std::string getLogDir() {
     char* buf = nullptr;
     size_t sz = 0;
@@ -22,7 +27,9 @@ std::wstring getLogFileName() {
     const size_t nameSeparator = currentPath.find_last_of(L"\\/");
     if (nameSeparator != std::wstring::npos && nameSeparator < currentPath.size() - 1)
     {
-        return std::wstring(currentPath, nameSeparator + 1) + L".log";
+        char buf[11];
+        _itoa_s(::GetCurrentProcessId(), buf, 10);
+        return std::wstring(currentPath, nameSeparator + 1) + L"_" + a2w(buf) + L".log";
     }
     return L"";
 }
@@ -33,11 +40,8 @@ void initLog()
     auto logDir = getLogDir();
 
     if (!logDir.empty() && !done) {
-        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-        auto logDirWide = converter.from_bytes(logDir.c_str());
-
         const std::wstring logFileName = getLogFileName();
-        const std::wstring logPath = logDirWide + logFileName;
+        const std::wstring logPath = a2w(logDir.c_str()) + logFileName;
         static plog::RollingFileAppender<plog::TxtFormatter, plog::NativeEOLConverter<> > fileAppender(logPath.c_str(), 10 * 1024 * 1024, 5);
         plog::init(plog::verbose, &fileAppender);
         done = true;
