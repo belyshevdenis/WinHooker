@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <codecvt>
+#include <vector>
 
 #include <Windows.h>
 #include <processthreadsapi.h>
@@ -19,8 +20,8 @@ DWORD sessionFromPid(DWORD pid) {
 	return sessionId;
 }
 
-// returns PID
-DWORD findProcess(PCWSTR processName) {
+// returns PIDs
+void findProcesses(PCWSTR processName, std::vector<DWORD>& pids) {
 	auto currentSession = sessionFromPid(::GetCurrentProcessId());
 	std::cout << "Finding \"" << processName << "\" in session #" << currentSession << std::endl;
 
@@ -38,12 +39,11 @@ DWORD findProcess(PCWSTR processName) {
 		while (Process32Next(snapshot, &entry) == TRUE) {
 			auto targetSession = sessionFromPid(entry.th32ProcessID);
 			if (targetSession == currentSession && _wcsicmp(entry.szExeFile, processName) == 0) {
-				// Return first process from the current session that matches the target name
-				return entry.th32ProcessID;
+				// Add the found process from the current session that matches the target name
+				pids.push_back(entry.th32ProcessID);
 			}
 		}
 	}
-	return 0;
 }
 
 void inject(HANDLE process, const std::wstring& dllPath) {
@@ -80,31 +80,43 @@ void inject(HANDLE process, const std::wstring& dllPath) {
 
 int main(int argc, char** argv) {
 	if (argc < 3) {
-		std::cout << "Usage: injector.exe <dll_to_inject> <process_name,...|PID,...>";
+		std::cout << "Usage: injector.exe <dll_to_inject> <process_name|PID>\n\tNote: the tool finds all processes with <process_name> and injects <dll_to_inject> to ALL processes found.";
 	}
 
 	HANDLE process = NULL;
 	try {
+		std::vector<DWORD> pids;
 		// Try to get the PID from 2nd parameter
-		auto pid = atoi(argv[1]);
-		if (pid == 0) {
-			// Try to find process by name from the 2nd parameter
-			pid = findProcess(a2w(argv[1]).c_str());
-			if (pid == 0) {
+		auto pid = atoi(argv[2]);
+		if (pid != 0) {
+			pids.push_back(pid);
+		}
+		else {
+			// Try to find processes by name from the 2nd parameter
+			findProcesses(a2w(argv[2]).c_str(), pids);
+			if (pids.empty()) {
 				throw std::runtime_error("Process is not found in current session");
 			}
 		}
 
-		// Open target process
-		process = ::OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
-		if (!process) {
-			throw std::runtime_error("Failed to open the process");
+		// iterate over all pids and inject DLL to all processes
+		for (auto pid = pids.begin(); pid != pids.end(); ++pid) {
+			const auto dllToInject = a2w(argv[1]);
+			try {
+				// Open target process
+				process = ::OpenProcess(PROCESS_ALL_ACCESS, FALSE, *pid);
+				if (!process) {
+					throw std::runtime_error("Failed to open the process");
+				}
+
+				// Inject DLL from the 1st parameter to the target process
+				inject(process, dllToInject);
+			}
+			catch (const std::exception& ex) {
+				std::cout << "Failed to inject " << argv[1] << " to process with PID " << *pid << ": " << ex.what() << std::endl;
+			}
+			std::cout << "dll is injected successfully\n";
 		}
-
-		// Inject DLL from the 3rd parameter to the target process
-		inject(process, a2w(argv[2]));
-
-		std::cout << "dll is injected successfully\n";
 	} catch (const std::exception& ex) {
 		std::cout << "ERROR: " << ex.what();
 	}
