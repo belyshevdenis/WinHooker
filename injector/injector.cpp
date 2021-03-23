@@ -80,7 +80,7 @@ void inject(HANDLE process, const std::wstring& dllPath) {
 
 int main(int argc, char** argv) {
 	if (argc < 3) {
-		std::cout << "Usage: injector.exe <process_name|PID> <dll_to_inject>";
+		std::cout << "Usage: injector.exe <dll_to_inject> <process_name,...|PID,...>";
 	}
 
 	HANDLE process = NULL;
