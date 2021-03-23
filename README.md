@@ -11,9 +11,10 @@ The simple package for hooking processes on Windows. Solution compiles with Visu
 3. Build `injector.exe` from `injector` project.
 4. Run `injector.exe` with parameters:
 ```
-injector <target> <dll>
+injector <dll> <target>
 ```
 Where `target` is the name or PID of the target process and `dll` is the full path to dll with hooks.
+_Note_: if the `target` is specified as process name, the tool finds __all__ processes with this name and injects `dll` to __all__ processes found.
 5. Have fun :)
 
 ## Logs
